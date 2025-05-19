@@ -71,7 +71,7 @@ class WebScraper:
         """
         # Handle Wikipedia URLs
         if 'wikipedia.org/wiki/' in url:
-            from src.opendeepsearch.context_scraping.utils import get_wikipedia_content
+            from opendeepsearch.context_scraping.utils import get_wikipedia_content
             try:
                 content = get_wikipedia_content(url)
                 # Create same result for all strategies since we're using Wikipedia content
@@ -160,12 +160,12 @@ class WebScraper:
                             content = result.extracted_content
                     
                     if self.filter_content and content:
-                        from src.opendeepsearch.context_scraping.utils import filter_quality_content
+                        from opendeepsearch.context_scraping.utils import filter_quality_content
                         content = filter_quality_content(content)
                 else:
                     content = result.extracted_content
                     if self.filter_content and content:
-                        from src.opendeepsearch.context_scraping.utils import filter_quality_content
+                        from opendeepsearch.context_scraping.utils import filter_quality_content
                         content = filter_quality_content(content)
 
             if self.debug:

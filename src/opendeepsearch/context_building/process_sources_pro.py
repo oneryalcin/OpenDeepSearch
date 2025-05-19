@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 from opendeepsearch.context_scraping.crawl4ai_scraper import WebScraper
 from opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher
 from opendeepsearch.ranking_models.jina_reranker import JinaReranker
@@ -44,7 +44,15 @@ class SourceProcessor:
         pro_mode: bool = False
     ) -> List[dict]:
         try:
-            valid_sources = self._get_valid_sources(sources, num_elements)
+            # Check if sources is a SearchResult object
+            if hasattr(sources, 'data'):
+                # It's a SearchResult object, use the data attribute
+                source_data = sources.data
+            else:
+                # It's already a dictionary
+                source_data = sources
+                
+            valid_sources = self._get_valid_sources(source_data, num_elements)
             if not valid_sources:
                 return sources
 
@@ -53,18 +61,21 @@ class SourceProcessor:
                 wiki_sources = [(i, source) for i, source in valid_sources 
                               if 'wikipedia.org' in source['link']]
                 if not wiki_sources:
-                    return sources.data
+                    return source_data
                 # If Wikipedia article exists, only process that
                 valid_sources = wiki_sources[:1]  # Take only the first Wikipedia source
 
             html_contents = await self._fetch_html_contents([s[1]['link'] for s in valid_sources])
-            return self._update_sources_with_content(sources.data, valid_sources, html_contents, query)
+            return self._update_sources_with_content(source_data, valid_sources, html_contents, query)
         except Exception as e:
             print(f"Error in process_sources: {e}")
             return sources
 
-    def _get_valid_sources(self, sources: List[dict], num_elements: int) -> List[Tuple[int, dict]]:
-        return [(i, source) for i, source in enumerate(sources.data['organic'][:num_elements]) if source]
+    def _get_valid_sources(self, sources: Dict, num_elements: int) -> List[Tuple[int, dict]]:
+        # Ensure we're accessing the 'organic' key from the dictionary
+        if 'organic' in sources:
+            return [(i, source) for i, source in enumerate(sources['organic'][:num_elements]) if source]
+        return []
 
     async def _fetch_html_contents(self, links: List[str]) -> List[str]:
         raw_contents = await self.scraper.scrape_many(links)
