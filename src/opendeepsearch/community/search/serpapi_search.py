@@ -204,30 +204,30 @@ class SerpAPI(SearchAPI):
             return SearchResult(error=f"Unexpected error: {str(e)}")
 
 
-if __name__ == "__main__":
-    import rich
-    from rich.console import Console
-    from rich.pretty import Pretty
-    
-    # Create console for rich output
-    console = Console()
-    
-    # Get API key from environment
-    api_key = os.getenv("SERPAPI_API_KEY")
-    if not api_key:
-        console.print("[bold red]Error: SERPAPI_API_KEY environment variable is not set[/bold red]")
-        exit(1)
-    
-    # Initialize API and run search
-    serp_api = SerpAPI(api_key=api_key)
-    query = "What is elon musk's net worth?"
-    console.print(f"Running search for: {query}")
-    result = serp_api.get_sources(query)
-    
-    # Print the result
-    console.print(result)
-    
-    # # Show raw data if successful
-    # if result.success and result.data:
-    #     console.print("\nData Structure:")
-    #     console.print(Pretty(result.data))
+# if __name__ == "__main__":
+#     import rich
+#     from rich.console import Console
+#     from rich.pretty import Pretty
+#
+#     # Create console for rich output
+#     console = Console()
+#
+#     # Get API key from environment
+#     api_key = os.getenv("SERPAPI_API_KEY")
+#     if not api_key:
+#         console.print("[bold red]Error: SERPAPI_API_KEY environment variable is not set[/bold red]")
+#         exit(1)
+#
+#     # Initialize API and run search
+#     serp_api = SerpAPI(api_key=api_key)
+#     query = "What is elon musk's net worth?"
+#     console.print(f"Running search for: {query}")
+#     result = serp_api.get_sources(query)
+#
+#     # Print the result
+#     console.print(result)
+#
+#     # # Show raw data if successful
+#     # if result.success and result.data:
+#     #     console.print("\nData Structure:")
+#     #     console.print(Pretty(result.data))

@@ -1,24 +1,132 @@
-## Semantic Search and Reranking
+# Reranking Models in OpenDeepSearch
 
-The OpenDeepSearch library provides a flexible framework for semantic search and document reranking. At its core is the `BaseSemanticSearcher` class, which can be extended to implement various reranking strategies.
+This directory contains the reranking models used by OpenDeepSearch to improve search relevance by reordering search results based on their semantic similarity to the query.
 
-### Creating Your Own Reranker
+## Available Rerankers
 
-To implement your own reranker, simply inherit from `BaseSemanticSearcher` and implement the `_get_embeddings()` method:
+OpenDeepSearch supports multiple reranking options to suit different needs:
+
+### 1. Infinity Reranker (Default)
+
+- **Type**: Bi-encoder (embeddings-based)
+- **Model**: Uses open-source models like `Alibaba-NLP/gte-Qwen2-7B-instruct`
+- **Dependencies**: Runs locally or connects to a local Infinity Embedding API server
+- **Advantages**: No additional API keys required, works offline
+- **Best for**: Development and testing, privacy-sensitive applications
+
+### 2. Jina Reranker
+
+- **Type**: Bi-encoder (embeddings-based)
+- **Model**: Uses Jina's powerful embedding models like `jina-embeddings-v3`
+- **Dependencies**: Requires `JINA_API_KEY` environment variable
+- **Advantages**: High-quality results, simple integration
+- **Best for**: Production use with moderate query volume
+
+### 3. Vertex AI Reranker
+
+- **Type**: Cross-encoder (direct relevance scoring)
+- **Model**: Uses Google's `semantic-ranker-default-004`
+- **Dependencies**: Requires Google Cloud service account credentials (`VERTEXAI_SA_CREDS`)
+- **Advantages**: High accuracy, evaluates query-document pairs directly
+- **Best for**: Enterprise applications requiring high-quality reranking
+
+### 4. Gemini Embedding Reranker
+
+- **Type**: Bi-encoder (embeddings-based)
+- **Model**: Uses Google's state-of-the-art embedding models:
+  - `text-embedding-large-exp-03-07` (via Vertex AI)
+  - `gemini-embedding-exp-03-07` (via Gemini API as fallback)
+- **Dependencies**: 
+  - Primary: Google Cloud service account credentials (`VERTEXAI_SA_CREDS`)
+  - Fallback: Google API key (`GOOGLE_API_KEY`)
+- **Advantages**: High-quality embeddings, fallback mechanism, Matryoshka embedding support
+- **Best for**: Production use with high quality requirements
+
+## Usage
+
+To use a specific reranker, specify it when creating the `OpenDeepSearchTool`:
+
+```python
+from opendeepsearch import OpenDeepSearchTool
+
+# Using Infinity (default)
+search_tool = OpenDeepSearchTool(reranker="infinity")
+
+# Using Jina
+search_tool = OpenDeepSearchTool(reranker="jina")
+
+# Using Vertex AI
+search_tool = OpenDeepSearchTool(
+    reranker="vertex",
+    vertex_credentials_path="/path/to/service-account.json",
+    vertex_project_id="your-gcp-project-id"
+)
+
+# Using Gemini Embeddings (with fallback)
+search_tool = OpenDeepSearchTool(
+    reranker="gemini",
+    vertex_credentials_path="/path/to/service-account.json",
+    vertex_project_id="your-gcp-project-id",
+    google_api_key="your-google-api-key",
+    output_dimensions=768  # Optional, reduce dimensions for efficiency
+)
+```
+
+## Technical Details
+
+### Bi-encoder vs. Cross-encoder
+
+OpenDeepSearch supports both bi-encoder and cross-encoder reranking approaches:
+
+1. **Bi-encoder** (Infinity, Jina, Gemini):
+   - Computes separate embeddings for queries and documents
+   - Uses dot product to calculate similarity scores
+   - Generally faster but potentially less accurate
+   - Better for caching and pre-computing embeddings
+
+2. **Cross-encoder** (Vertex AI):
+   - Takes query-document pairs as input
+   - Directly computes relevance scores
+   - Generally more accurate but slower
+   - Cannot pre-compute or cache embeddings
+
+### Installing Dependencies
+
+Each reranker requires specific dependencies:
+
+```bash
+# For Jina
+pip install opendeepsearch
+export JINA_API_KEY='your-jina-api-key'
+
+# For Google rerankers (Vertex AI and/or Gemini)
+pip install opendeepsearch[google]
+export VERTEXAI_SA_CREDS='/path/to/service-account.json'
+export GOOGLE_API_KEY='your-google-api-key'  # For Gemini fallback
+
+# For all dependencies
+pip install opendeepsearch[all]
+```
+
+## Creating Your Own Reranker
+
+To implement your own reranker, inherit from `BaseSemanticSearcher` and implement the `_get_embeddings()` method:
 
 ```python
 from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher
 import torch
+from typing import List
+
 class MyCustomReranker(BaseSemanticSearcher):
-    def init(self):
+    def __init__(self):
         # Initialize your embedding model here
         super().__init__()
         self.model = YourEmbeddingModel()
-    def get_embeddings(self, texts: List[str]) -> torch.Tensor:
+        
+    def _get_embeddings(self, texts: List[str]) -> torch.Tensor:
         # Implement your embedding logic here
-        pass
-    embeddings = self.model.encode(texts)
-    return torch.tensor(embeddings)
+        embeddings = self.model.encode(texts)
+        return torch.tensor(embeddings)
 ```
 
 The base class automatically handles:
@@ -27,7 +135,7 @@ The base class automatically handles:
 - Document reranking
 - Top-k selection
 
-### Using Infinity Rerankers
+## Using Infinity Rerankers
 
 For high-performance reranking, we support [Infinity](https://github.com/michaelfeil/infinity) rerankers which offer state-of-the-art performance. To use an Infinity reranker, first start the Infinity server:
 
@@ -44,21 +152,12 @@ v2 --model-id Alibaba-NLP/gte-Qwen2-7B-instruct --revision "refs/pr/38" \
 This will start an Infinity server using the Qwen2-7B-instruct model. The server will be available at `localhost:7997`.
 
 Key parameters:
-- `--model-id`: The Hugging Face model ID to use (see [supported models](https://github.com/michaelfeil/infinity#supported-tasks-and-models-by-infinity))
+- `--model-id`: The Hugging Face model ID to use
 - `--dtype`: Data type for inference (bfloat16 recommended for modern GPUs)
 - `--batch-size`: Batch size for inference
 - `--port`: Port to expose the server on
 
-For specialized deployments, Infinity provides several Docker images:
-- `latest-cpu` - For CPU-only inference
-- `latest-rocm` - For AMD ROCm GPUs
-- `latest-trt-onnx` - For NVIDIA GPUs with TensorRT/ONNX optimizations
-
-See the [Infinity documentation](https://michaelfeil.github.io/infinity/) for more details on deployment options and configuration.
-
-Note: Ensure you have sufficient VRAM (16-32GB) and a compatible NVIDIA GPU (Compute Capability ≥ 8.0) before running the Infinity server.
-
-### Using Jina AI (or API based) Rerankers
+## Using Jina AI Rerankers
 
 Jina AI provides powerful embedding models through their API service. The `JinaReranker` class offers a simple way to leverage these models:
 
@@ -76,18 +175,11 @@ documents = [
     "Natural language processing uses machine learning"
 ]
 
-# Get top 2 most relevant documents
-results = reranker.search(query, documents, k=2)
+# Get reranked documents
+reranked_docs = reranker.get_reranked_documents(query, documents, top_k=2)
 ```
 
 The JinaReranker uses Jina's v3 embeddings by default, which provides:
 - 1024-dimensional embeddings
 - Optimized for text matching tasks
 - State-of-the-art performance for semantic search
-
-To use JinaReranker:
-1. Sign up for a Jina AI API key at https://jina.ai
-2. Either pass the API key directly or set it as an environment variable `JINA_API_KEY`
-3. Optionally specify a different model using the `model` parameter
-
-Note: Unlike Infinity rerankers which run locally, Jina rerankers require an internet connection and API credits.

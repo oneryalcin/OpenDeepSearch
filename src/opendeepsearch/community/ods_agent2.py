@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Type
 from opendeepsearch.serp_search.serp_search import create_search_api, SearchAPI
 from opendeepsearch.context_building.process_sources_pro import SourceProcessor
 from opendeepsearch.context_building.build_context import build_context
@@ -8,21 +8,22 @@ import os
 from opendeepsearch.prompts import SEARCH_SYSTEM_PROMPT
 import asyncio
 import nest_asyncio
-load_dotenv()
+
+from src.opendeepsearch.community.search.serpapi_search import SerpAPI
+
+# load_dotenv()
+#
 
 class OpenDeepSearchAgent:
     def __init__(
         self,
+        search_provider: Type[SearchAPI],
         model: Optional[str] = None, #We use LiteLLM to call the model
         system_prompt: Optional[str] = SEARCH_SYSTEM_PROMPT,
-        search_provider: Literal["serper", "searxng"] = "serper",
-        serper_api_key: Optional[str] = None,
-        searxng_instance_url: Optional[str] = None,
-        searxng_api_key: Optional[str] = None,
         source_processor_config: Optional[Dict[str, Any]] = None,
         temperature: float = 0.2, # Slight variation while maintaining reliability
         top_p: float = 0.3, # Focus on high-confidence tokens
-        reranker: Optional[str] = "infinity", # Reranker to use (infinity, jina, vertex, gemini)
+        reranker: Optional[str] = None, # Reranker to use (infinity, jina, vertex, gemini),
     ):
         """
         Initialize an OpenDeepSearch agent that combines web search, content processing, and LLM capabilities.
@@ -60,12 +61,13 @@ class OpenDeepSearchAgent:
                 - "gemini": Bi-encoder reranking with Gemini embeddings
         """
         # Initialize search API based on provider
-        self.serp_search = create_search_api(
-            search_provider=search_provider,
-            serper_api_key=serper_api_key,
-            searxng_instance_url=searxng_instance_url,
-            searxng_api_key=searxng_api_key
-        )
+        # self.serp_search = create_search_api(
+        #     search_provider=search_provider,
+        #     serper_api_key=serper_api_key,
+        #     searxng_instance_url=searxng_instance_url,
+        #     searxng_api_key=searxng_api_key
+        # )
+        self.search_provider = search_provider
 
         # Update source_processor_config with reranker if provided
         if source_processor_config is None:
@@ -77,15 +79,10 @@ class OpenDeepSearchAgent:
         self.source_processor = SourceProcessor(**source_processor_config)
 
         # Initialize LLM settings
-        self.model = model if model is not None else os.getenv("LITELLM_SEARCH_MODEL_ID", os.getenv("LITELLM_MODEL_ID", "openrouter/google/gemini-2.0-flash-001"))
+        self.model = model if model is not None else os.getenv("LITELLM_SEARCH_MODEL_ID", os.getenv("LITELLM_MODEL_ID", "gemini/gemini-2.0-flash-001"))
         self.temperature = temperature
         self.top_p = top_p
         self.system_prompt = system_prompt
-
-        # Configure LiteLLM with OpenAI base URL if provided
-        openai_base_url = os.environ.get("OPENAI_BASE_URL")
-        if openai_base_url:
-            utils.set_provider_config("openai", {"base_url": openai_base_url})
 
     async def search_and_build_context(
         self,
@@ -111,7 +108,7 @@ class OpenDeepSearchAgent:
             str: A formatted context string built from the processed search results.
         """
         # Get sources from SERP
-        sources = self.serp_search.get_sources(query)
+        sources = self.search_provider.get_sources(query=query)
 
         # Process sources
         processed_sources = await self.source_processor.process_sources(
@@ -184,3 +181,18 @@ class OpenDeepSearchAgent:
             asyncio.set_event_loop(loop)
 
         return loop.run_until_complete(self.ask(query, max_sources, pro_mode))
+
+
+
+if __name__ == "__main__":
+    # Example usage
+    search_provider = SerpAPI(api_key=os.getenv("SERPAPI_API_KEY"))
+
+    agent = OpenDeepSearchAgent(
+        model="gemini/gemini-2.0-flash-001",
+        search_provider=search_provider
+    )
+
+    result = agent.ask_sync("Length of Pont Alexandre III?")
+    print(result)
+

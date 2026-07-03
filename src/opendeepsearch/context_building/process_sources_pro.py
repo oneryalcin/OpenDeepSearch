@@ -29,9 +29,22 @@ class SourceProcessor:
         self.chunker = Chunker()
         
         # Initialize the appropriate reranker
-        if reranker.lower() == "jina":
+        reranker = reranker.lower()
+        if reranker == "jina":
             self.semantic_searcher = JinaReranker()
             print("Using Jina Reranker")
+        elif reranker == "vertex":
+            from opendeepsearch.ranking_models.vertex_ai_ranker import VertexAIRanker
+            self.semantic_searcher = VertexAIRanker()
+            print("Using Vertex AI Ranker (Cross-encoder)")
+        elif reranker == "gemini":
+            from opendeepsearch.ranking_models.gemini_embedding_reranker import GeminiEmbeddingReranker
+            self.semantic_searcher = GeminiEmbeddingReranker()
+            print("Using Gemini Embedding Reranker (Bi-encoder)")
+        elif reranker == "pylate":
+            from opendeepsearch.ranking_models.pylate_reranker import PyLateReranker
+            self.semantic_searcher = PyLateReranker()
+            print("Using PyLate Reranker (ColBERT - Token-level interaction)")
         else:  # default to infinity
             self.semantic_searcher = InfinitySemanticSearcher()
             print("Using Infinity Reranker")
